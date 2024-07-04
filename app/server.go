@@ -80,7 +80,7 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		handleConnection(conn, router)
+		go handleConnection(conn, router)
 	}
 
 }
