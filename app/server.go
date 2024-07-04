@@ -39,14 +39,15 @@ func main() {
 	}
 
 	router := http.NewRouter()
-	router.Get("/", func(args map[string]any) *http.Response {
+
+	router.Get("/", func(ctx *http.Context) *http.Response {
 		res := &http.Response{}
 		res = res.WithVersion(1.1).WithStatusCode(200).WithReason("OK")
 		return res
 	})
-	router.Get("/echo/:toEcho", func(args map[string]any) *http.Response {
+	router.Get("/echo/:toEcho", func(ctx *http.Context) *http.Response {
 		res := &http.Response{}
-		toEcho, ok := args["toEcho"].(string)
+		toEcho, ok := ctx.PathArgs["toEcho"].(string)
 		if !ok {
 			return res.WithVersion(1.1).WithStatusCode(400).WithReason("Bad Request")
 		}
@@ -55,6 +56,20 @@ func main() {
 			WithStatusCode(200).
 			WithReason("OK").
 			WithBody(toEcho).
+			WithHeader("Content-Type", "text/plain")
+		return res
+	})
+	router.Get("/user-agent", func(ctx *http.Context) *http.Response {
+		res := &http.Response{}
+		userAgent, ok := ctx.Request.Headers["User-Agent"]
+		if !ok {
+			return res.WithVersion(1.1).WithStatusCode(400).WithReason("Bad Request")
+		}
+		res = res.
+			WithVersion(1.1).
+			WithStatusCode(200).
+			WithReason("OK").
+			WithBody(userAgent).
 			WithHeader("Content-Type", "text/plain")
 		return res
 	})

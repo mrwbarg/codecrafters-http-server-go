@@ -8,7 +8,7 @@ import (
 
 type Route struct {
 	RawPath string
-	Handler func(map[string]any) *Response
+	Handler func(*Context) *Response
 }
 
 func (r *Route) GetPathArgs(target string) map[string]any {
@@ -25,8 +25,15 @@ func (r *Route) GetPathArgs(target string) map[string]any {
 	return args
 }
 
-func (r *Route) Handle(args map[string]any) *Response {
-	return r.Handler(args)
+func (r *Route) GetContext(req *Request) *Context {
+	return &Context{
+		Request:  req,
+		PathArgs: r.GetPathArgs(req.Target),
+	}
+}
+
+func (r *Route) Handle(ctx *Context) *Response {
+	return r.Handler(ctx)
 }
 
 type Router struct {
@@ -53,7 +60,7 @@ func pathToRegex(path string) string {
 	return strings.Join(formattedNodes, "/")
 }
 
-func (r *Router) Get(path string, handler func(map[string]any) *Response) {
+func (r *Router) Get(path string, handler func(*Context) *Response) {
 	route := Route{
 		RawPath: path,
 		Handler: handler,
@@ -61,7 +68,7 @@ func (r *Router) Get(path string, handler func(map[string]any) *Response) {
 	r.GET[pathToRegex(path)] = route
 }
 
-func (r *Router) Match(path string) (Route, map[string]any, bool) {
+func (r *Router) Match(req *Request) (Route, *Context, bool) {
 	paths := make([]string, 0, len(r.GET))
 
 	for k := range r.GET {
@@ -71,22 +78,22 @@ func (r *Router) Match(path string) (Route, map[string]any, bool) {
 	sort.Strings(paths)
 
 	for _, regexPath := range paths {
-		match, _ := regexp.MatchString("^"+regexPath+"$", path)
+		match, _ := regexp.MatchString("^"+regexPath+"$", req.Target)
 		if match {
 			route := r.GET[regexPath]
-			return route, route.GetPathArgs(path), true
+			return route, route.GetContext(req), true
 		}
 	}
-	return Route{}, map[string]any{}, false
+	return Route{}, nil, false
 }
 
 func (r *Router) Handle(req *Request) *Response {
 
 	res := &Response{}
 	if req.Method == GET {
-		handler, args, ok := r.Match(req.Target)
+		handler, context, ok := r.Match(req)
 		if ok {
-			return handler.Handle(args)
+			return handler.Handle(context)
 		}
 		return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
 	}
