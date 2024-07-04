@@ -1,5 +1,6 @@
 package http
 
 const (
-	GET string = "GET"
+	GET  string = "GET"
+	POST string = "POST"
 )

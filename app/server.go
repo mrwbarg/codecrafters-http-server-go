@@ -103,6 +103,29 @@ func main() {
 			WithHeader("Content-Type", "application/octet-stream")
 		return res
 	})
+	router.Post("/files/:fileName", func(ctx *http.Context) *http.Response {
+		res := &http.Response{}
+		fileName, ok := ctx.PathArgs["fileName"].(string)
+		if !ok {
+			return res.WithVersion(1.1).WithStatusCode(400).WithReason("Bad Request")
+		}
+		fullDir := *filesDir + fileName
+
+		file, err := os.Create(fullDir)
+		if err != nil {
+			return res.WithVersion(1.1).WithStatusCode(500).WithReason("Internal Server Error")
+		}
+		defer file.Close()
+
+		file.Write([]byte(ctx.Request.Body))
+		file.Sync()
+
+		res = res.
+			WithVersion(1.1).
+			WithStatusCode(201).
+			WithReason("Created")
+		return res
+	})
 
 	for {
 		conn, err := l.Accept()

@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -9,6 +10,7 @@ type Request struct {
 	Method  string
 	Target  string
 	Headers map[string]string
+	Body    string
 }
 
 func ParseRequest(buffer []byte) (*Request, error) {
@@ -38,6 +40,21 @@ func ParseRequest(buffer []byte) (*Request, error) {
 		req.Headers[headerElements[0]] = strings.TrimSpace(headerElements[1])
 
 		next++
+	}
+	next++
+
+	if req.Method == POST {
+		contentLength, ok := req.Headers["Content-Length"]
+		rawBody := requestElements[next]
+		if !ok && (len(rawBody) > 0) {
+			return nil, fmt.Errorf("invalid request")
+		} else {
+			i, err := strconv.Atoi(contentLength)
+			if err != nil {
+				return nil, fmt.Errorf("invalid request")
+			}
+			req.Body = string([]byte(rawBody)[0:i])
+		}
 	}
 
 	return req, nil

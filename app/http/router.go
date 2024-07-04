@@ -9,6 +9,7 @@ import (
 type Route struct {
 	RawPath string
 	Handler func(*Context) *Response
+	Method  string
 }
 
 func (r *Route) GetPathArgs(target string) map[string]any {
@@ -37,12 +38,14 @@ func (r *Route) Handle(ctx *Context) *Response {
 }
 
 type Router struct {
-	GET map[string]Route
+	GET  map[string]Route
+	POST map[string]Route
 }
 
 func NewRouter() *Router {
 	router := &Router{}
 	router.GET = make(map[string]Route)
+	router.POST = make(map[string]Route)
 	return router
 }
 
@@ -64,14 +67,35 @@ func (r *Router) Get(path string, handler func(*Context) *Response) {
 	route := Route{
 		RawPath: path,
 		Handler: handler,
+		Method:  GET,
 	}
 	r.GET[pathToRegex(path)] = route
 }
 
-func (r *Router) Match(req *Request) (Route, *Context, bool) {
-	paths := make([]string, 0, len(r.GET))
+func (r *Router) Post(path string, handler func(*Context) *Response) {
+	route := Route{
+		RawPath: path,
+		Handler: handler,
+		Method:  POST,
+	}
+	r.POST[pathToRegex(path)] = route
+}
 
-	for k := range r.GET {
+func (r *Router) Match(req *Request) (Route, *Context, bool) {
+	paths := make([]string, 0, max(len(r.GET), len(r.POST)))
+
+	var routeMap map[string]Route
+
+	if req.Method == GET {
+		routeMap = r.GET
+
+	}
+
+	if req.Method == POST {
+		routeMap = r.POST
+	}
+
+	for k := range routeMap {
 		paths = append(paths, k)
 	}
 
@@ -80,7 +104,7 @@ func (r *Router) Match(req *Request) (Route, *Context, bool) {
 	for _, regexPath := range paths {
 		match, _ := regexp.MatchString("^"+regexPath+"$", req.Target)
 		if match {
-			route := r.GET[regexPath]
+			route := routeMap[regexPath]
 			return route, route.GetContext(req), true
 		}
 	}
@@ -90,12 +114,11 @@ func (r *Router) Match(req *Request) (Route, *Context, bool) {
 func (r *Router) Handle(req *Request) *Response {
 
 	res := &Response{}
-	if req.Method == GET {
-		handler, context, ok := r.Match(req)
-		if ok {
-			return handler.Handle(context)
-		}
-		return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
+	handler, context, ok := r.Match(req)
+
+	if ok {
+		return handler.Handle(context)
 	}
+
 	return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
 }
