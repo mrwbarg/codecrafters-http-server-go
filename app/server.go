@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -38,6 +40,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	filesDir := flag.String("directory", "/", "Directory to serve files from")
+	flag.Parse()
+
 	router := http.NewRouter()
 
 	router.Get("/", func(ctx *http.Context) *http.Response {
@@ -71,6 +76,31 @@ func main() {
 			WithReason("OK").
 			WithBody(userAgent).
 			WithHeader("Content-Type", "text/plain")
+		return res
+	})
+	router.Get("/files/:fileName", func(ctx *http.Context) *http.Response {
+		res := &http.Response{}
+		fileName, ok := ctx.PathArgs["fileName"].(string)
+		if !ok {
+			return res.WithVersion(1.1).WithStatusCode(400).WithReason("Bad Request")
+		}
+		fullDir := *filesDir + fileName
+
+		data, err := os.ReadFile(fullDir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
+			}
+			return res.WithVersion(1.1).WithStatusCode(500).WithReason("Internal Server Error")
+
+		}
+
+		res = res.
+			WithVersion(1.1).
+			WithStatusCode(200).
+			WithReason("OK").
+			WithBody(string(data)).
+			WithHeader("Content-Type", "application/octet-stream")
 		return res
 	})
 
