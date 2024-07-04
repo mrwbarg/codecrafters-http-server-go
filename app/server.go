@@ -4,32 +4,58 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/codecrafters-io/http-server-starter-go/app/http"
 )
 
+func handleConnection(conn net.Conn, router *Router) {
+	fmt.Println("Handling new connection")
 
-type Response struct {
-	Version float32 
-	StatusCode int
-	Reason string
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+
+	if err != nil {
+		fmt.Println("Error reading from connection: ", err.Error())
+		os.Exit(1)
+	}
+	fmt.Println("Read %d bytes.", n)
+	req, err := http.ParseRequest(buffer)
+	if err != nil {
+		fmt.Println("Error parsing request: ", err.Error())
+		os.Exit(1)
+	}
+
+	res := router.Handle(req)
+	conn.Write(res.WriteBytes())
+	conn.Close()
+
 }
 
-func (o *Response) WithVersion(version float32) *Response {
-	o.Version = version
-	return o
+type Router struct {
+	GET map[string]func(*http.Request) *http.Response
 }
 
-func (o *Response) WithStatusCode(statusCode int) *Response {
-	o.StatusCode = statusCode
-	return o
+func NewRouter() *Router {
+	router := &Router{}
+	router.GET = make(map[string]func(*http.Request) *http.Response)
+	return router
 }
 
-func (o *Response) WithReason(reason string) *Response {
-	o.Reason = reason
-	return o
+func (r *Router) get(path string, handler func(*http.Request) *http.Response) {
+	r.GET[path] = handler
 }
 
-func (o *Response) WriteBytes() []byte {
-	return []byte(fmt.Sprintf("HTTP/%.1f %d %s\r\n\r\n", o.Version, o.StatusCode, o.Reason))
+func (r *Router) Handle(req *http.Request) *http.Response {
+
+	res := &http.Response{}
+	if req.Method == http.GET {
+		handler, ok := r.GET[req.Target]
+		if ok {
+			return handler(req)
+		}
+		return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
+	}
+	return res.WithVersion(1.1).WithStatusCode(404).WithReason("Not Found")
 }
 
 func main() {
@@ -38,21 +64,21 @@ func main() {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+
+	router := NewRouter()
+	router.get("/", func(req *http.Request) *http.Response {
+		res := &http.Response{}
+		res = res.WithVersion(1.1).WithStatusCode(200).WithReason("OK")
+		return res
+	})
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		handleConnection(conn, router)
 	}
 
-	r := &Response{}
-	r = r.WithVersion(1.1).WithStatusCode(200).WithReason("OK")
-
-	n, err := conn.Write(r.WriteBytes())
-
-	if err != nil {
-		fmt.Println("Error writing to connection: ", err.Error())
-		os.Exit(1)
-	}
-
-	fmt.Println("Wrote", n, "bytes")
 }
