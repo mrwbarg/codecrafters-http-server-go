@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -11,6 +12,23 @@ type Request struct {
 	Target  string
 	Headers map[string]string
 	Body    string
+}
+
+func (r *Request) CompressResponse() bool {
+	return slices.Contains(r.parseAcceptEncoding(), "gzip")
+}
+
+func (r *Request) parseAcceptEncoding() []string {
+	schemes, ok := r.Headers["Accept-Encoding"]
+
+	if !ok {
+		return []string{}
+	}
+	trimmed := make([]string, 0)
+	for _, scheme := range strings.Split(schemes, ",") {
+		trimmed = append(trimmed, strings.TrimSpace(scheme))
+	}
+	return trimmed
 }
 
 func ParseRequest(buffer []byte) (*Request, error) {

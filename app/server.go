@@ -28,7 +28,7 @@ func handleConnection(conn net.Conn, router *http.Router) {
 	}
 
 	res := router.Handle(req)
-	conn.Write(res.WriteBytes())
+	conn.Write(res.WriteBytes(req.CompressResponse()))
 	conn.Close()
 
 }

@@ -1,6 +1,8 @@
 package http
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"strings"
 )
@@ -57,8 +59,25 @@ func (o *Response) WriteHeaders() string {
 	return strings.Join(headers, "")
 }
 
-func (o *Response) WriteBytes() []byte {
-	o.SetHeader("Content-Length", len([]byte(o.Body)))
+func (o *Response) WriteBody(compress bool) string {
+	if compress {
+		var buffer bytes.Buffer
+		gz := gzip.NewWriter(&buffer)
+		if _, err := gz.Write([]byte(o.Body)); err != nil {
+			return ""
+		}
+		if err := gz.Close(); err != nil {
+			return ""
+		}
+		o.SetHeader("Content-Encoding", "gzip")
+		return buffer.String()
+	}
+	return o.Body
+}
+
+func (o *Response) WriteBytes(compress bool) []byte {
+	body := o.WriteBody(compress)
+	o.SetHeader("Content-Length", len([]byte(body)))
 	return []byte(
 		fmt.Sprintf(
 			"HTTP/%.1f %d %s\r\n%s\r\n%s",
@@ -66,7 +85,7 @@ func (o *Response) WriteBytes() []byte {
 			o.StatusCode,
 			o.Reason,
 			o.WriteHeaders(),
-			o.Body,
+			body,
 		),
 	)
 }
